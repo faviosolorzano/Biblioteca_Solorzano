@@ -1,69 +1,50 @@
-import Image from "next/image";
+'use client'
 
-export default function Home() {
-  return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
-  );
+import Link from 'next/link'
+import { useEffect, useState } from 'react'
+import { api, errorMessage, type Author, type Book } from '@/lib/types'
+import { Icon } from '@/components/icons'
+import { Modal } from '@/components/modal'
+import { AuthorForm } from '@/components/author-form'
+
+export default function Dashboard() {
+  const [authors, setAuthors] = useState<Author[]>([])
+  const [books, setBooks] = useState<Book[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
+  const [query, setQuery] = useState('')
+  const [form, setForm] = useState<Author | 'new' | null>(null)
+  const [deleting, setDeleting] = useState<Author | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [revision, setRevision] = useState(0)
+  useEffect(() => {
+    const controller = new AbortController()
+    Promise.all([api<Author[]>('/api/authors', { signal: controller.signal }), api<Book[]>('/api/books', { signal: controller.signal })])
+      .then(([a, b]) => { setAuthors(a); setBooks(b); setError('') })
+      .catch(e => { if (!controller.signal.aborted) setError(errorMessage(e)) })
+      .finally(() => { if (!controller.signal.aborted) setLoading(false) })
+    return () => controller.abort()
+  }, [revision])
+  const genres = new Set(books.map(b => b.genre).filter(Boolean))
+  const shown = authors.filter(a => `${a.name} ${a.nationality ?? ''}`.toLocaleLowerCase().includes(query.toLocaleLowerCase()))
+  async function remove() {
+    if (!deleting) return
+    setBusy(true)
+    try { await api(`/api/authors/${deleting.id}`, { method: 'DELETE' }); setDeleting(null); setNotice('Autor eliminado correctamente.'); setRevision(r => r + 1) }
+    catch (e) { setError(errorMessage(e)); setDeleting(null) } finally { setBusy(false) }
+  }
+  return <>
+    <div className="page-heading"><div><span className="eyebrow">UN ESPACIO PARA TUS HISTORIAS</span><h1>Tu biblioteca, a un vistazo<span>.</span></h1><p>Organiza autores, descubre libros y haz crecer tu colección.</p></div><button className="button primary" onClick={() => setForm('new')}><Icon name="plus" size={18} />Nuevo autor</button></div>
+    <section className="hero-panel"><div className="hero-copy"><span className="hero-kicker">EL SIGUIENTE CAPÍTULO TE ESPERA</span><h2>Cada libro abre<br />un nuevo mundo.</h2><p>Un lugar para las voces que admiras<br />y las historias que quieres conservar.</p><Link href="/books" className="button hero-button">Explorar catálogo<Icon name="arrow" size={17} /></Link></div><div className="hero-art" aria-hidden="true"><div className="orbit orbit-one" /><div className="orbit orbit-two" /><span className="hero-star">✦</span><div className="decor-book book-back"><span>HISTORIAS<br />QUE PERDURAN</span></div><div className="decor-book book-front"><small>BIBLIOTECA PERSONAL</small><strong>El arte<br />de leer</strong><span>✧</span><small>UN MUNDO POR DESCUBRIR</small></div><div className="book-shadow" /></div></section>
+    <section className="stats-grid" aria-label="Estadísticas generales"><div className="stat-card"><span className="stat-icon"><Icon name="users" /></span><div><small>Autores en tu biblioteca</small><strong>{loading ? '—' : authors.length}</strong></div><span className="stat-label">VOCES</span></div><div className="stat-card"><span className="stat-icon warm"><Icon name="book" /></span><div><small>Libros en la colección</small><strong>{loading ? '—' : books.length}</strong></div><span className="stat-label">HISTORIAS</span></div><div className="stat-card"><span className="stat-icon lilac"><Icon name="globe" /></span><div><small>Géneros para explorar</small><strong>{loading ? '—' : genres.size}</strong></div><span className="stat-label">MUNDOS</span></div></section>
+    {error && <p className="notice error" role="alert">{error} <button className="text-button" onClick={() => setRevision(r => r + 1)}>Reintentar</button></p>}
+    {notice && <p className="notice success" role="status">{notice}</p>}
+    <section id="autores" className="section-block"><div className="section-heading"><div><span className="eyebrow">DETRÁS DE CADA HISTORIA</span><h2>Los autores de tu colección <span className="count-pill">{authors.length}</span></h2></div><label className="search-field compact"><Icon name="search" size={18} /><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Buscar autor…" aria-label="Buscar autor" /></label></div>
+      <div className="panel"><div className="table-scroll"><table className="authors-table"><thead><tr><th>Autor</th><th>Nacionalidad</th><th>Libros</th><th>Acciones</th></tr></thead><tbody>{shown.map(a => <tr key={a.id}><td><Link href={`/authors/${a.id}`} className="author-identity"><span className="avatar author-avatar">{a.name.split(' ').filter(Boolean).slice(0, 2).map(n => n[0]).join('')}</span><span><strong>{a.name}</strong><small>{a.email}</small></span></Link></td><td><span className="nationality">{a.nationality || 'No registrada'}</span></td><td><span className="tag neutral">{a.books.length} {a.books.length === 1 ? 'libro' : 'libros'}</span></td><td><div className="row-actions"><Link className="view-link" href={`/authors/${a.id}`}>Ver libros<Icon name="arrow" size={15} /></Link><button className="icon-button" onClick={() => setForm(a)} aria-label={`Editar ${a.name}`}><Icon name="edit" size={17} /></button><button className="icon-button danger" onClick={() => setDeleting(a)} aria-label={`Eliminar ${a.name}`}><Icon name="trash" size={17} /></button></div></td></tr>)}</tbody></table></div>{loading ? <div className="empty-state" role="status"><span className="spinner" />Cargando tu biblioteca…</div> : shown.length === 0 ? <div className="empty-state"><Icon name="users" size={30} /><h3>{query ? 'No encontramos ese autor' : 'Tu próxima historia empieza aquí'}</h3><p>{query ? 'Prueba con otro nombre o nacionalidad.' : 'Agrega tu primer autor para empezar la colección.'}</p></div> : <div className="panel-footer">{shown.length} {shown.length === 1 ? 'autor registrado' : 'autores registrados'}<span>Una colección con voz propia</span></div>}</div>
+    </section>
+    <section className="recent-section"><div className="section-heading"><div><span className="eyebrow">RECIÉN LLEGADOS</span><h2>Las últimas historias</h2></div><Link href="/books" className="view-link">Ver catálogo completo<Icon name="arrow" size={17} /></Link></div>{books.length ? <div className="recent-grid">{books.slice(0, 3).map(b => <Link key={b.id} href={`/authors/${b.authorId}`} className="recent-book"><span className="recent-book-icon"><Icon name="book" size={28} /></span><div><span className="eyebrow">{b.genre || 'COLECCIÓN'}</span><h3>{b.title}</h3><p>{b.author?.name}</p></div><Icon name="arrow" size={18} /></Link>)}</div> : <div className="empty-inline">Aún no hay libros. <Link href="/books">Agrega el primero al catálogo →</Link></div>}</section>
+    {form && <Modal title={form === 'new' ? 'Un nuevo autor' : 'Editar autor'} onClose={() => setForm(null)}><AuthorForm author={form === 'new' ? undefined : form} onCancel={() => setForm(null)} onSaved={() => { setNotice(form === 'new' ? 'Autor creado correctamente.' : 'Autor actualizado correctamente.'); setForm(null); setRevision(r => r + 1) }} /></Modal>}
+    {deleting && <Modal title="Eliminar autor" onClose={() => setDeleting(null)}><p className="confirm-copy">Se eliminará a <strong>{deleting.name}</strong> y sus {deleting.books.length} libros. Esta acción no se puede deshacer.</p><div className="form-actions"><button className="button secondary" onClick={() => setDeleting(null)}>Cancelar</button><button className="button destructive" disabled={busy} onClick={remove}>{busy ? 'Eliminando…' : 'Eliminar autor'}</button></div></Modal>}
+  </>
 }
